@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 import torch
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from tqdm import tqdm
@@ -25,6 +26,7 @@ class Pipeline:
         return get_wrapped_dataset(batch_size=self.batch_size)
 
     def train(self):
+        train_losses = []
         for epoch in range(self.num_epochs):
             self.model.train()
             train_loss = 0 # Initialize loss
@@ -54,7 +56,18 @@ class Pipeline:
                 loss.backward()
                 self.optimizer.step()
                 self.scheduler.step()
+            torch.save(self.model.state_dict(), f"model_epoch_{epoch + 1}.pt")
+            train_loss.append(train_loss / len(self.train_loader))
             print(f"Epoch {epoch + 1}, Loss: {train_loss / len(self.train_loader)}")
+        self.plot_loss(train_losses)
+
+    def plot_loss(self, train_losses):
+        train_losses_x = range(1, len(train_losses) + 1)
+        plt.plot(train_losses_x, train_losses, label="Train Loss")
+        plt.xlabel("Epochs")
+        plt.ylabel("Loss")
+        plt.title("Training Loss")
+        plt.savefig("training_loss.png")
 
     def init_model(self):
         return AudioEmbeddingModel()
@@ -67,5 +80,5 @@ class Pipeline:
         scheduler = CosineAnnealingLR(optimizer, T_max=self.num_epochs, eta_min=1e-5)
         return optimizer, scheduler
 
-pipeline = Pipeline(num_epochs=10, lr=1e-3, batch_size=32)
+pipeline = Pipeline(num_epochs=20, lr=1e-3, batch_size=32)
 pipeline.train()

@@ -14,12 +14,10 @@ class AudioEmbeddingModel(nn.Module):
 
         # Use adaptive pooling to handle variable input lengths
         self.adaptive_pool = nn.AdaptiveMaxPool1d(output_size=64)
-
+        self.relu = nn.ReLU()
         # Define fully connected layers
         self.fc1 = nn.Linear(64 * 64, 256)  # Now fixed due to adaptive pooling
         self.fc2 = nn.Linear(256, 128)  # Embedding size
-
-        self.relu = nn.ReLU()
 
     def forward(self, x):
         x = self.conv1(x)
