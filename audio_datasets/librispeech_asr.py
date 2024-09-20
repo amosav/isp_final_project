@@ -1,10 +1,14 @@
-
+import librosa
 import torch
 import torchaudio
-from datasets import load_dataset
-from torch.utils.data import IterableDataset, DataLoader
+from datasets import load_dataset, Dataset
+from torch.utils.data import IterableDataset, DataLoader, random_split
 from transformers import AutoProcessor
 from transformers import ClapModel, ClapProcessor
+from transformers.pipelines.base import pad_collate_fn
+
+SEED = 42
+torch.manual_seed(SEED)
 
 def collate_fn(batch):
     """
@@ -49,14 +53,14 @@ class LibriSpeechCLAPStreamingDataset(IterableDataset):
             max_length (int): The maximum length of audio in samples (default is 16,000).
         """
         # self.dataset = load_dataset("librispeech_asr", split=split, streaming=True)
-        self.dataset = load_dataset("ashraq/esc50", split="train", streaming=True)
+        self.dataset = load_dataset("ashraq/esc50", split="train", streaming=False)
         self.processor = processor or AutoProcessor.from_pretrained("laion/clap-htsat-fused")
         self.max_length = max_length
+        self.target_sampling_rate = 48000
 
     def resample_audio(self, audio, original_sampling_rate):
         if original_sampling_rate != self.target_sampling_rate:
-            resampler = torchaudio.transforms.Resample(orig_freq=original_sampling_rate, new_freq=self.target_sampling_rate)
-            return resampler(audio)
+            audio = librosa.resample(audio.numpy(), orig_sr=original_sampling_rate, target_sr=self.target_sampling_rate)
         return audio
 
     def __iter__(self):
@@ -90,6 +94,27 @@ class LibriSpeechCLAPStreamingDataset(IterableDataset):
             yield {
                 **audio_features,
             }
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, idx):
+        data = print(idx)
+        data = self.dataset[idx]
+        audio = data['audio']['array']
+        original_sampling_rate = data['audio']['sampling_rate']
+        audio_resampled = self.resample_audio(torch.tensor(audio), original_sampling_rate)
+        text = data['category']
+        text = f"a {text} making sound"
+        audio_features = self.processor(
+            audios=audio_resampled,
+            text=text,
+            return_tensors="pt",
+            sampling_rate=self.target_sampling_rate,
+            truncation=True,
+            padding=True,
+            return_attention_mask=True
+        )
+        return audio_features
 
 
 # Example usage
@@ -97,7 +122,22 @@ processor = ClapProcessor.from_pretrained("laion/clap-htsat-fused")
 streaming_dataset = LibriSpeechCLAPStreamingDataset(split='train.clean.100', processor=processor)
 data_loader = DataLoader(streaming_dataset, batch_size=16, collate_fn=collate_fn)
 model = ClapModel.from_pretrained("laion/clap-htsat-fused")
-for i in data_loader:
+
+train_size = int(0.8 * len(streaming_dataset))
+test_size = len(streaming_dataset) - train_size
+
+# Perform deterministic split
+train_dataset, test_dataset = random_split(streaming_dataset, [train_size, test_size])
+
+# Define batch size
+batch_size = 16  # Adjust based on your needs
+
+# Create DataLoader objects for train and test sets
+train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,collate_fn=collate_fn)
+test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_fn)
+
+
+for i in train_loader:
     # print(i)
     a = model(
         is_longer=i['is_longer'],
@@ -106,3 +146,6 @@ for i in data_loader:
         attention_mask=i['attention_mask']
     )
     break
+
+
+
