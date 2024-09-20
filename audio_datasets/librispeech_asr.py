@@ -1,46 +1,98 @@
-import librosa
-import numpy as np
-import torch
-from datasets import load_dataset, Audio
-from torch.utils.data import DataLoader
 
-def preprocess_single(audio):
-    y = np.array(audio["array"])
-    sr = audio["sampling_rate"]
-    # Extract 13 MFCCs
-    mfccs = librosa.feature.mfcc(y=y, sr=16000, n_mfcc=13)
-    return mfccs
+import torch
+from datasets import load_dataset
+from torch.utils.data import IterableDataset, DataLoader
+from transformers import AutoProcessor
+from transformers import ClapModel, ClapProcessor
 
 def collate_fn(batch):
-    input_values = []
-    input_lengths = []
-    speaker_ids = []
-    labels = []
+    """
+    Custom collate function to handle varying lengths of text and audio.
+    This pads all sequences in the batch to the maximum length in the batch for each key.
 
-    for item in batch:
-        # Preprocess each audio sample on the fly
-        mfccs = preprocess_single(item["audio"])
-        input_values.append(torch.tensor(mfccs).T)  # Transpose to (time, n_mfcc) for padding
-        input_lengths.append(mfccs.shape[1])  # Length is the number of frames
-        speaker_ids.append(item["speaker_id"])
-        labels.append(item["text"])
+    Args:
+        batch (list): A batch of dictionaries from the dataset.
 
-    # Pad the input values
-    input_values = torch.nn.utils.rnn.pad_sequence(input_values, batch_first=True, padding_value=0)
+    Returns:
+        dict: A batch where each key is padded to the maximum length.
+    """
+    # Initialize a dictionary to hold collated data
+    collated_batch = {}
 
-    # Transpose back to (n_mfcc, time) after padding
-    input_values = input_values.transpose(1, 2)
+    for key in batch[0].keys():
+        # Stack all tensors under this key
+        values = [torch.tensor(b[key]) for b in batch]
 
-    input_lengths = torch.tensor(input_lengths)
+        # Find the max length along axis=1 (sequence length)
+        max_length = max(v.size(1) for v in values)
 
-    return {"input_values": input_values, "input_lengths": input_lengths, "labels": labels, "speaker_ids": speaker_ids}
+        # Pad each tensor along axis=1 to the maximum length
+        padded_values = [torch.nn.functional.pad(v, (0, max_length - v.size(1)), mode='constant', value=0) for v in values]
 
-def get_wrapped_dataset(batch_size):
-    # Load the dataset without preprocessing
-    dataset = load_dataset("openslr/librispeech_asr", "clean", trust_remote_code=True, split="train.100")
-    dataset = dataset.cast_column("audio", Audio(sampling_rate=16000))
-    # Convert to PyTorch format, but don't preprocess yet
-    dataset.set_format(type="torch", columns=["audio", "speaker_id", "text"])
-    # Create DataLoader with custom collate_fn
-    dataloader = DataLoader(dataset, batch_size=batch_size, collate_fn=collate_fn, shuffle=True)
-    return dataloader
+        # Stack padded tensors along the batch dimension (axis=0)
+        collated_batch[key] = torch.stack(padded_values)
+
+    return collated_batch
+
+
+
+
+class LibriSpeechCLAPStreamingDataset(IterableDataset):
+    def __init__(self, split='train-clean-100', processor=None, max_length=16000):
+        """
+        Initializes the streaming dataset for finetuning CLAP on LibriSpeech.
+
+        Args:
+            split (str): The dataset split to load ('train-clean-100', 'train-clean-360', etc.)
+            processor (AutoProcessor): The processor to tokenize/process audio data.
+            max_length (int): The maximum length of audio in samples (default is 16,000).
+        """
+        # self.dataset = load_dataset("librispeech_asr", split=split, streaming=True)
+        self.dataset = load_dataset("ashraq/esc50", split="train", streaming=True)
+        self.processor = processor or AutoProcessor.from_pretrained("laion/clap-htsat-fused")
+        self.max_length = max_length
+
+    def __iter__(self):
+        """
+        Yields each item in the dataset.
+
+        Returns:
+            dict: A dictionary with processed audio and corresponding text.
+        """
+        for sample in self.dataset:
+            # Process the audio and text
+            audio = sample['audio']['array']
+            text = sample['category']
+            text = f"a {text} making sound"
+
+            # Process the audio using the CLAP processor
+            audio_features = self.processor(
+                audios=audio,
+                text=text,
+                return_tensors="pt",
+                sampling_rate=sample['audio']['sampling_rate'],
+                truncation=True,
+                padding=True,
+                return_attention_mask=True
+            )
+
+            # Yield the processed sample
+            yield {
+                **audio_features,
+            }
+
+
+# Example usage
+processor = ClapProcessor.from_pretrained("laion/clap-htsat-fused")
+streaming_dataset = LibriSpeechCLAPStreamingDataset(split='train.clean.100', processor=processor)
+data_loader = DataLoader(streaming_dataset, batch_size=16, collate_fn=collate_fn)
+model = ClapModel.from_pretrained("laion/clap-htsat-fused")
+for i in data_loader:
+    # print(i)
+    a = model(
+        is_longer=i['is_longer'],
+        input_ids=i['input_ids'].squeeze(1),  # Text input
+        input_features=i['input_features'].squeeze(1),  # Audio input
+        attention_mask=i['attention_mask']
+    )
+    break
