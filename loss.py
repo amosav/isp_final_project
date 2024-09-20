@@ -20,15 +20,14 @@ def clap_loss(audio_embeddings, text_embeddings):
 
     Returns:
         A scalar tensor representing the CLAP loss.
-    """
-    # Normalize embeddings to have unit length (for cosine similarity)
-    audio_embeddings = F.normalize(audio_embeddings, p=2, dim=1)
-    text_embeddings = F.normalize(text_embeddings, p=2, dim=1)
+    """        # Labels are simply the indices of the batch
+    batch_size = audio_embeddings.shape[0]
+    labels = torch.arange(batch_size, device=audio_embeddings.device)
 
-    # Compute the cosine similarity
-    cosine_sim = F.cosine_similarity(audio_embeddings, text_embeddings, dim=1)
+    # Compute cross-entropy loss for image-to-text and text-to-image
+    loss_a2t = F.cross_entropy(audio_embeddings, labels)
+    loss_t2a = F.cross_entropy(text_embeddings, labels)
 
-    # The loss is 1 - mean cosine similarity, encouraging the model to maximize similarity
-    loss = 1 - cosine_sim.mean()
-
-    return loss
+    # The total loss is the average of the two
+    total_loss = (loss_a2t + loss_t2a) / 2
+    return total_loss

@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import torch
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from tqdm import tqdm
-from audio_datasets.librispeech_asr import get_wrapped_dataset
+# from audio_datasets.librispeech_asr import get_wrapped_dataset
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 from loss import contrastive_loss
@@ -80,5 +80,14 @@ class Pipeline:
         scheduler = CosineAnnealingLR(optimizer, T_max=self.num_epochs, eta_min=1e-5)
         return optimizer, scheduler
 
-pipeline = Pipeline(num_epochs=20, lr=1e-3, batch_size=32)
-pipeline.train()
+from transformers import AutoProcessor, AutoModel
+
+# Load the processor and model
+processor = AutoProcessor.from_pretrained("laion/clap-htsat-fused")
+model = AutoModel.from_pretrained("laion/clap-htsat-fused")
+dataset = get_wrapped_dataset(16)
+
+# pipeline = Pipeline(num_epochs=20, lr=1e-3, batch_size=32)
+for i in dataset:
+    print(i)
+# pipeline.train()
