@@ -1,5 +1,6 @@
 
 import torch
+import torchaudio
 from datasets import load_dataset
 from torch.utils.data import IterableDataset, DataLoader
 from transformers import AutoProcessor
@@ -52,6 +53,12 @@ class LibriSpeechCLAPStreamingDataset(IterableDataset):
         self.processor = processor or AutoProcessor.from_pretrained("laion/clap-htsat-fused")
         self.max_length = max_length
 
+    def resample_audio(self, audio, original_sampling_rate):
+        if original_sampling_rate != self.target_sampling_rate:
+            resampler = torchaudio.transforms.Resample(orig_freq=original_sampling_rate, new_freq=self.target_sampling_rate)
+            return resampler(audio)
+        return audio
+
     def __iter__(self):
         """
         Yields each item in the dataset.
@@ -62,12 +69,15 @@ class LibriSpeechCLAPStreamingDataset(IterableDataset):
         for sample in self.dataset:
             # Process the audio and text
             audio = sample['audio']['array']
+            original_sampling_rate = sample['audio']['sampling_rate']
+            audio_resampled = self.resample_audio(torch.tensor(audio), original_sampling_rate)
+
             text = sample['category']
             text = f"a {text} making sound"
 
             # Process the audio using the CLAP processor
             audio_features = self.processor(
-                audios=audio,
+                audios=audio_resampled,
                 text=text,
                 return_tensors="pt",
                 sampling_rate=sample['audio']['sampling_rate'],
