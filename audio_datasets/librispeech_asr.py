@@ -2,6 +2,7 @@ import librosa
 import torch
 import torchaudio
 from datasets import load_dataset, Dataset
+from pyexpat import features
 from torch.utils.data import IterableDataset, DataLoader, random_split
 from transformers import AutoProcessor
 from transformers import ClapModel, ClapProcessor
@@ -23,10 +24,11 @@ def collate_fn(batch):
     """
     # Initialize a dictionary to hold collated data
     collated_batch = {}
-
-    for key in batch[0].keys():
+    features = [b[0] for b in batch]
+    labels = [b[1] for b in batch]
+    for key in features[0].keys():
         # Stack all tensors under this key
-        values = [torch.tensor(b[key]) for b in batch]
+        values = [b[key].clone().detach() for b in features]
 
         # Find the max length along axis=1 (sequence length)
         max_length = max(v.size(1) for v in values)
@@ -37,7 +39,7 @@ def collate_fn(batch):
         # Stack padded tensors along the batch dimension (axis=0)
         collated_batch[key] = torch.stack(padded_values)
 
-    return collated_batch
+    return collated_batch, torch.tensor(labels)
 
 
 
