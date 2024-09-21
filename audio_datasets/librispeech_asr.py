@@ -56,6 +56,7 @@ class LibriSpeechCLAPStreamingDataset(IterableDataset):
         self.dataset = load_dataset("ashraq/esc50", split="train", streaming=False)
         self.processor = processor or AutoProcessor.from_pretrained("laion/clap-htsat-fused")
         self.max_length = max_length
+        self.categories_id = {category: i for i, category in enumerate(set(self.dataset['category']))}
         self.target_sampling_rate = 48000
 
     def resample_audio(self, audio, original_sampling_rate):
@@ -98,7 +99,6 @@ class LibriSpeechCLAPStreamingDataset(IterableDataset):
         return len(self.dataset)
 
     def __getitem__(self, idx):
-        data = print(idx)
         data = self.dataset[idx]
         audio = data['audio']['array']
         original_sampling_rate = data['audio']['sampling_rate']
@@ -114,38 +114,24 @@ class LibriSpeechCLAPStreamingDataset(IterableDataset):
             padding=True,
             return_attention_mask=True
         )
-        return audio_features
+        return audio_features, self.categories_id[data['category']]
 
 
 # Example usage
-processor = ClapProcessor.from_pretrained("laion/clap-htsat-fused")
-streaming_dataset = LibriSpeechCLAPStreamingDataset(split='train.clean.100', processor=processor)
-data_loader = DataLoader(streaming_dataset, batch_size=16, collate_fn=collate_fn)
-model = ClapModel.from_pretrained("laion/clap-htsat-fused")
+def get_data_loaders(batch_size=16):
+    processor = ClapProcessor.from_pretrained("laion/clap-htsat-fused")
+    streaming_dataset = LibriSpeechCLAPStreamingDataset(split='train.clean.100', processor=processor)
+    train_size = int(0.8 * len(streaming_dataset))
+    test_size = len(streaming_dataset) - train_size
 
-train_size = int(0.8 * len(streaming_dataset))
-test_size = len(streaming_dataset) - train_size
+    # Perform deterministic split
+    train_dataset, test_dataset = random_split(streaming_dataset, [train_size, test_size])
 
-# Perform deterministic split
-train_dataset, test_dataset = random_split(streaming_dataset, [train_size, test_size])
+    # Create DataLoader objects for train and test sets
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,collate_fn=collate_fn)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_fn)
+    return train_loader, test_loader
 
-# Define batch size
-batch_size = 16  # Adjust based on your needs
-
-# Create DataLoader objects for train and test sets
-train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,collate_fn=collate_fn)
-test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_fn)
-
-
-for i in train_loader:
-    # print(i)
-    a = model(
-        is_longer=i['is_longer'],
-        input_ids=i['input_ids'].squeeze(1),  # Text input
-        input_features=i['input_features'].squeeze(1),  # Audio input
-        attention_mask=i['attention_mask']
-    )
-    break
 
 
 
