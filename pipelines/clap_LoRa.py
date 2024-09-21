@@ -10,7 +10,7 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 if DEVICE == "cuda":
     sys.path.append('/content/py/isp_final_project') # for colab :)
 
-from audio_datasets.librispeech_asr import get_data_loaders
+from audio_datasets.esc50_dataset import get_esc50_data_loaders
 from loss import clap_loss
 from models.model_utils import get_CLAP_LoRa
 
@@ -38,7 +38,7 @@ class Pipeline:
         os.makedirs(os.path.join(self.save_path, "checkpoints"), exist_ok=True)
 
     def init_data(self):
-        return get_data_loaders(True, self.batch_size)
+        return get_esc50_data_loaders(True, self.batch_size)
 
     def train(self):
         train_losses = []

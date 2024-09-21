@@ -2,13 +2,10 @@ import random
 
 import librosa
 import torch
-import torchaudio
-from datasets import load_dataset, Dataset
-from pyexpat import features
+from datasets import load_dataset
 from torch.utils.data import IterableDataset, DataLoader, random_split
 from transformers import AutoProcessor
-from transformers import ClapModel, ClapProcessor
-from transformers.pipelines.base import pad_collate_fn
+from transformers import ClapProcessor
 
 SEED = 42
 torch.manual_seed(SEED)
@@ -55,7 +52,7 @@ def generate_prompt(data):
 
 
 
-class LibriSpeechCLAPStreamingDataset(IterableDataset):
+class esc50CLAPStreamingDataset(IterableDataset):
     def __init__(self, prompt_function, split='train', processor=None, max_length=16000):
         """
         Initializes the streaming dataset for finetuning CLAP on LibriSpeech.
@@ -132,12 +129,12 @@ class LibriSpeechCLAPStreamingDataset(IterableDataset):
 
 
 # Example usage
-def get_data_loaders(manipulate_prompt, batch_size=16):
+def get_esc50_data_loaders(manipulate_prompt, batch_size=16):
     processor = ClapProcessor.from_pretrained("laion/clap-htsat-fused")
     if manipulate_prompt:
-        streaming_dataset = LibriSpeechCLAPStreamingDataset(prompt_function=generate_prompt, processor=processor)
+        streaming_dataset = esc50CLAPStreamingDataset(prompt_function=generate_prompt, processor=processor)
     else:
-        streaming_dataset = LibriSpeechCLAPStreamingDataset(prompt_function=lambda x: x, processor=processor)
+        streaming_dataset = esc50CLAPStreamingDataset(prompt_function=lambda x: x, processor=processor)
 
     train_size = int(0.8 * len(streaming_dataset))
     test_size = len(streaming_dataset) - train_size
