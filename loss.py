@@ -20,7 +20,7 @@ def clap_loss(audio_embeddings, text_embeddings):
 
     Returns:
         A scalar tensor representing the CLAP loss.
-    """        # Labels are simply the indices of the batch
+    """
     batch_size = audio_embeddings.shape[0]
     labels = torch.arange(batch_size, device=audio_embeddings.device)
 
