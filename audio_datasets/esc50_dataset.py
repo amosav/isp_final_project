@@ -1,12 +1,11 @@
+import random
+
 import librosa
 import torch
-import torchaudio
-from datasets import load_dataset, Dataset
-from pyexpat import features
+from datasets import load_dataset
 from torch.utils.data import IterableDataset, DataLoader, random_split
 from transformers import AutoProcessor
-from transformers import ClapModel, ClapProcessor
-from transformers.pipelines.base import pad_collate_fn
+from transformers import ClapProcessor
 
 SEED = 42
 torch.manual_seed(SEED)
@@ -41,11 +40,20 @@ def collate_fn(batch):
 
     return collated_batch, torch.tensor(labels)
 
+def generate_prompt(data):
+    prob = random.uniform(0, 1)
+    if prob < 0.25:
+        return data
+    if prob < 0.5:
+        return f"a {data} making sound"
+    if prob < 0.75:
+        return f"this is a {data}"
+    return f"the sound of a {data}"
 
 
 
-class LibriSpeechCLAPStreamingDataset(IterableDataset):
-    def __init__(self, split='train-clean-100', processor=None, max_length=16000):
+class esc50CLAPStreamingDataset(IterableDataset):
+    def __init__(self, prompt_function, split='train', processor=None, max_length=16000):
         """
         Initializes the streaming dataset for finetuning CLAP on LibriSpeech.
 
@@ -55,6 +63,7 @@ class LibriSpeechCLAPStreamingDataset(IterableDataset):
             max_length (int): The maximum length of audio in samples (default is 16,000).
         """
         # self.dataset = load_dataset("librispeech_asr", split=split, streaming=True)
+        self.prompt_function = prompt_function
         self.dataset = load_dataset("ashraq/esc50", split="train", streaming=False)
         self.processor = processor or AutoProcessor.from_pretrained("laion/clap-htsat-fused")
         self.max_length = max_length
@@ -80,7 +89,7 @@ class LibriSpeechCLAPStreamingDataset(IterableDataset):
             audio_resampled = self.resample_audio(torch.tensor(audio), original_sampling_rate)
 
             text = sample['category']
-            text = f"a {text} making sound"
+            text = self.prompt_function(text)
 
             # Process the audio using the CLAP processor
             audio_features = self.processor(
@@ -106,7 +115,7 @@ class LibriSpeechCLAPStreamingDataset(IterableDataset):
         original_sampling_rate = data['audio']['sampling_rate']
         audio_resampled = self.resample_audio(torch.tensor(audio), original_sampling_rate)
         text = data['category']
-        text = f"a {text} making sound"
+        text = self.prompt_function(text)
         audio_features = self.processor(
             audios=audio_resampled,
             text=text,
@@ -120,9 +129,13 @@ class LibriSpeechCLAPStreamingDataset(IterableDataset):
 
 
 # Example usage
-def get_data_loaders(batch_size=16):
+def get_esc50_data_loaders(manipulate_prompt, batch_size=16):
     processor = ClapProcessor.from_pretrained("laion/clap-htsat-fused")
-    streaming_dataset = LibriSpeechCLAPStreamingDataset(split='train.clean.100', processor=processor)
+    if manipulate_prompt:
+        streaming_dataset = esc50CLAPStreamingDataset(prompt_function=generate_prompt, processor=processor)
+    else:
+        streaming_dataset = esc50CLAPStreamingDataset(prompt_function=lambda x: x, processor=processor)
+
     train_size = int(0.8 * len(streaming_dataset))
     test_size = len(streaming_dataset) - train_size
 
