@@ -5,13 +5,16 @@ import torch
 from matplotlib import pyplot as plt
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from tqdm import tqdm
+from transformers import AutoProcessor
 
 from audio_datasets.music_genres_dataset import get_music_genres_data_loaders
+from evaluation import evaluate
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 if DEVICE == "cuda":
     sys.path.append('/content/py/isp_final_project') # for colab :)
 
+processor = AutoProcessor.from_pretrained("laion/clap-htsat-fused")
 from audio_datasets.esc50_dataset import get_esc50_data_loaders
 from loss import clap_loss
 from models.model_utils import get_CLAP_LoRa
@@ -78,7 +81,7 @@ class Pipeline:
                 )
                 loss = self.loss(preds['audio_embeds'], preds['text_embeds'])
                 validation_loss += loss.item()
-
+            evaluate(processor, self.model, self.test_loader)
             train_losses.append(train_loss / len(self.train_loader))
             validation_losses.append(validation_loss / len(self.test_loader))
             print(f"Epoch            {epoch + 1}\n"

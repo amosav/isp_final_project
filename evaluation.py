@@ -29,15 +29,15 @@ def evaluate_predictions(predictions, true_labels, label_names):
     cm = confusion_matrix(true_labels, predictions)
 
     # Plot confusion matrix
-    plt.figure(figsize=(10, 7))
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=label_names, yticklabels=label_names)
-    plt.xlabel('Predicted Labels')
-    plt.ylabel('True Labels')
-    plt.title('Confusion Matrix')
-    plt.show()
+    # plt.figure(figsize=(10, 7))
+    # sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=label_names, yticklabels=label_names)
+    # plt.xlabel('Predicted Labels')
+    # plt.ylabel('True Labels')
+    # plt.title('Confusion Matrix')
+    # plt.show()
 
 
-def classify_with_cosine_similarity(train_loader, caption_embeddings, caption_labels):
+def classify_with_cosine_similarity(model, train_loader, caption_embeddings, caption_labels):
     all_predictions = []
     all_true_labels = []
     all_audio_embeddings = []
@@ -78,21 +78,17 @@ def evaluate(processor, model, loader):
     caption_embeddings = []
     for caption, idx in captions.items():
         inputs = processor(text=caption, return_tensors="pt", padding=True, truncation=True)
+        for k, v in inputs.items():
+          inputs[k] = v.to(DEVICE)
         with torch.no_grad():
             text_embedding = model.get_text_features(**inputs).squeeze(0)  # Get text embeddings
-            # text_embedding = model(
-            #     is_longer=inputs['is_longer'].to(DEVICE),
-            #     input_ids=inputs['input_ids'].squeeze(1).to(DEVICE),  # Text input
-            #     input_features=inputs['input_features'].squeeze(1).to(DEVICE),  # Audio input
-            #     attention_mask=inputs['attention_mask'].to(DEVICE)
-            # ).squeeze(0)
 
         caption_embeddings.append(text_embedding)
     caption_embeddings = torch.stack(caption_embeddings)
     values_list = list(captions.values())
-    pred, true_labels, audio_embeddings = classify_with_cosine_similarity(test_loader, caption_embeddings, values_list)
+    pred, true_labels, audio_embeddings = classify_with_cosine_similarity(model, loader, caption_embeddings, values_list)
     evaluate_predictions(pred, true_labels, captions)
-    plot_embedding_visualization(audio_embeddings, true_labels,captions, method="tsne")
+    # plot_embedding_visualization(audio_embeddings, true_labels,captions, method="tsne")
 
 
 def plot_embedding_visualization(embeddings, labels, label_names, method="pca", n_components=2):
@@ -140,17 +136,17 @@ def plot_embedding_visualization(embeddings, labels, label_names, method="pca", 
 
 
 # Initialize the processor and model
-processor = ClapProcessor.from_pretrained("laion/clap-htsat-fused")
-model = ClapModel.from_pretrained("laion/clap-htsat-fused")
+# processor = ClapProcessor.from_pretrained("laion/clap-htsat-fused")
+# model = ClapModel.from_pretrained("laion/clap-htsat-fused")
 # model = get_CLAP_LoRa(8, 16)
 
 # model.load_state_dict(torch.load("drive-download-20240922T131907Z-001/model_epoch_12_lr0.0001_a16r8,.pt", map_location=torch.device('cpu')))
 # DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 # model.to(DEVICE)
-model.eval()
+# model.eval()
 #
-train_loader, test_loader =get_esc50_data_loaders(True)
-evaluate(processor, model, train_loader)
+# train_loader, test_loader =get_esc50_data_loaders(True)
+# evaluate(processor, model, train_loader)
 
 # for i in train_loader:
 #     # print(i)
