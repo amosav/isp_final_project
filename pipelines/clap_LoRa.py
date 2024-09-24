@@ -37,7 +37,7 @@ class Pipeline:
         self.train_loader, self.test_loader = self.init_data(data_type)
         self.loss = self.init_loss()
         self.save_path = save_path
-        self.model_name = f"{data_type}_model_epoch_{self.num_epochs }_lr{self.lr}_a{alpha}r{r},.pt"
+        self.model_name = f"{data_type}_model_epoch_{self.num_epochs }_lr{self.lr}_a{alpha}r{r}.pt"
 
     def init_save_path(self):
         os.makedirs(self.save_path, exist_ok=True)
@@ -81,6 +81,7 @@ class Pipeline:
                 )
                 loss = self.loss(preds['audio_embeds'], preds['text_embeds'])
                 validation_loss += loss.item()
+            torch.save(self.model.state_dict(), f"{self.save_path}/{self.model_name}")
             evaluate(processor, self.model, self.test_loader)
             train_losses.append(train_loss / len(self.train_loader))
             validation_losses.append(validation_loss / len(self.test_loader))
