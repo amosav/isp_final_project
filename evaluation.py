@@ -24,7 +24,6 @@ def evaluate_predictions(predictions, true_labels, label_names):
     accuracy = accuracy_score(true_labels, predictions)
     print(f"Accuracy: {accuracy * 100:.2f}%")
     label_dict = {v: k for k, v in label_names.items()}
-
     # Confusion matrix
     cm = confusion_matrix(true_labels, predictions)
 
@@ -35,6 +34,8 @@ def evaluate_predictions(predictions, true_labels, label_names):
     # plt.ylabel('True Labels')
     # plt.title('Confusion Matrix')
     # plt.show()
+    return accuracy
+
 
 
 def classify_with_cosine_similarity(model, train_loader, caption_embeddings, caption_labels):
@@ -87,7 +88,7 @@ def evaluate(processor, model, loader):
     caption_embeddings = torch.stack(caption_embeddings)
     values_list = list(captions.values())
     pred, true_labels, audio_embeddings = classify_with_cosine_similarity(model, loader, caption_embeddings, values_list)
-    evaluate_predictions(pred, true_labels, captions)
+    return evaluate_predictions(pred, true_labels, captions)
     # plot_embedding_visualization(audio_embeddings, true_labels,captions, method="tsne")
 
 
