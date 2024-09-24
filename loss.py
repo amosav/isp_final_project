@@ -21,9 +21,6 @@ def clap_loss(audio_embeddings, text_embeddings):
     Returns:
         A scalar tensor representing the CLAP loss.
     """
-    # Normalize embeddings if not already normalized (you've checked they are normalized)
-    # audio_embeddings = F.normalize(audio_embeddings, p=2, dim=-1)
-    # text_embeddings = F.normalize(text_embeddings, p=2, dim=-1)
 
     # Compute cosine similarity matrix between audio and text embeddings
     similarity_matrix = torch.matmul(audio_embeddings, text_embeddings.T)
