@@ -56,7 +56,7 @@ def classify_with_cosine_similarity(train_loader, caption_embeddings, caption_la
         batch_norm = F.normalize(preds['audio_embeds'], p=2, dim=1)  # Normalize along the feature dimension (dim=1)
         reference_set_norm = F.normalize(caption_embeddings, p=2, dim=1)
         similarities = torch.mm(batch_norm, reference_set_norm.t())
-        all_audio_embeddings.append(batch_norm.cpu().numpy())
+        all_audio_embeddings.append(batch_norm)
         # Get the index of the most similar caption for each audio sample
         best_matches = torch.argmax(similarities, dim=1)
 
@@ -65,7 +65,7 @@ def classify_with_cosine_similarity(train_loader, caption_embeddings, caption_la
         all_predictions.extend(best_matches.tolist())
         all_true_labels.extend(true_labels.tolist())
 
-    all_audio_embeddings = np.concatenate(all_audio_embeddings, axis=0)
+    all_audio_embeddings = torch.cat(all_audio_embeddings, dim=0)
 
     return all_predictions, all_true_labels, all_audio_embeddings
 
@@ -142,15 +142,15 @@ def plot_embedding_visualization(embeddings, labels, label_names, method="pca", 
 # Initialize the processor and model
 processor = ClapProcessor.from_pretrained("laion/clap-htsat-fused")
 model = ClapModel.from_pretrained("laion/clap-htsat-fused")
-# model = get_CLAP_LoRa(16, 32)
-#
-# model.load_state_dict(torch.load("drive-download-20240922T131907Z-001/model_epoch_12_lr0.0005_a32r16,.pt", map_location=torch.device('cpu')))
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-model.to(DEVICE)
+# model = get_CLAP_LoRa(8, 16)
+
+# model.load_state_dict(torch.load("drive-download-20240922T131907Z-001/model_epoch_12_lr0.0001_a16r8,.pt", map_location=torch.device('cpu')))
+# DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+# model.to(DEVICE)
 model.eval()
 #
 train_loader, test_loader =get_esc50_data_loaders(True)
-evaluate(processor, model, test_loader)
+evaluate(processor, model, train_loader)
 
 # for i in train_loader:
 #     # print(i)
