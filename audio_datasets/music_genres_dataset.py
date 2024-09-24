@@ -85,7 +85,8 @@ class MusicGenresCLAPDataset(IterableDataset):
             audio = sample['audio']['array']
             original_sampling_rate = sample['audio']['sampling_rate']
             audio_resampled = self.resample_audio(torch.tensor(audio), original_sampling_rate)
-
+            if audio_resampled.size > self.max_length:
+                audio_resampled = self.extract_random_segment(audio_resampled)
             text = sample['genre']
             text = self.prompt_function(text)
 
@@ -125,8 +126,15 @@ class MusicGenresCLAPDataset(IterableDataset):
         return audio_features, data['genre_id']
 
 
+    def extract_random_segment(self, audio):
+        """Randomly extract a 5-second segment from the audio."""
+        max_start = max(0, len(audio) - self.max_length)
+        start = random.randint(0, max_start)
+        return audio[start:start + self.max_length]
+
+
 # Example usage
-def get_esc50_data_loaders(manipulate_prompt, batch_size=16):
+def get_music_genres_data_loaders(manipulate_prompt, batch_size=16):
     processor = ClapProcessor.from_pretrained("laion/clap-htsat-fused")
     if manipulate_prompt:
         train_dataset = MusicGenresCLAPDataset(prompt_function=generate_prompt, split="train", processor=processor)
@@ -141,8 +149,3 @@ def get_esc50_data_loaders(manipulate_prompt, batch_size=16):
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_fn)
     return train_loader, test_loader
-
-train_loader, test_loader = get_esc50_data_loaders(manipulate_prompt=True, batch_size=16)
-for i in train_loader:
-    print(i)
-    break
