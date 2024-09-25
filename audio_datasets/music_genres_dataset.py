@@ -63,15 +63,12 @@ class MusicGenresCLAPDataset(IterableDataset):
         """
         # self.dataset = load_dataset("librispeech_asr", split=split, streaming=True)
         self.prompt_function = prompt_function
-        self.dataset = load_dataset("lewtun/music_genres", split=split,streaming=True)
+        self.dataset = load_dataset("lewtun/music_genres", split=split)
         self.processor = processor or AutoProcessor.from_pretrained("lewtun/music_genres")
         self.max_length = max_length
         self.target_sampling_rate = 48000
         # genre_values = self.dataset.features['genre'].names
-        self.categories_id = {"Electronic" : 0, "Rock":1,"Punk":2, "Experimental":3, "Hip-Hop":4, "Folk":5,
-                              "Chiptune / Glitch":6, "Instrumental":7,"Pop":8,"International":9,"Ambient Electronic":10,
-                              "Classical":11 ,"Old-Time / Historic":12, "Jazz":13, "Country":14,"Soul-RnB":15
-                              ,"Spoken":16,"Blues":17,"Easy Listening":18}
+        self.categories_id = {category: i for i, category in enumerate(set(self.dataset['genre']))}
 
 
     def resample_audio(self, audio, original_sampling_rate):
@@ -129,7 +126,7 @@ class MusicGenresCLAPDataset(IterableDataset):
             padding=True,
             return_attention_mask=True
         )
-        return audio_features, self.categories_id[data['genre_id']]
+        return audio_features, self.categories_id[data['genre']]
 
 
     def extract_random_segment(self, audio):

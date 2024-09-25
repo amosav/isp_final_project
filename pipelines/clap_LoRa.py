@@ -55,6 +55,8 @@ class Pipeline:
         train_losses = []
         validation_losses = []
         accuracy = []
+        accuracy.append(evaluate(processor, self.model, self.test_loader))
+
         for epoch in range(self.num_epochs):
             self.model.train()
             train_loss = 0 # Initialize loss
