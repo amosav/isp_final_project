@@ -15,7 +15,7 @@ import seaborn as sns
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from transformers import ClapProcessor, ClapModel
-from audio_datasets.esc50_dataset import get_esc50_data_loaders
+from audio_datasets.music_genres_dataset import get_music_genres_data_loaders
 from sklearn.metrics import accuracy_score, confusion_matrix
 import torch.nn.functional as F
 
@@ -28,12 +28,12 @@ def evaluate_predictions(predictions, true_labels, label_names):
     cm = confusion_matrix(true_labels, predictions)
 
     # Plot confusion matrix
-    # plt.figure(figsize=(10, 7))
-    # sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=label_names, yticklabels=label_names)
-    # plt.xlabel('Predicted Labels')
-    # plt.ylabel('True Labels')
-    # plt.title('Confusion Matrix')
-    # plt.show()
+    plt.figure(figsize=(10, 7))
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=label_names, yticklabels=label_names)
+    plt.xlabel('Predicted Labels')
+    plt.ylabel('True Labels')
+    plt.title('Confusion Matrix')
+    plt.show()
     return accuracy
 
 
@@ -89,7 +89,7 @@ def evaluate(processor, model, loader):
     values_list = list(captions.values())
     pred, true_labels, audio_embeddings = classify_with_cosine_similarity(model, loader, caption_embeddings, values_list)
     return evaluate_predictions(pred, true_labels, captions)
-    # plot_embedding_visualization(audio_embeddings, true_labels,captions, method="tsne")
+    plot_embedding_visualization(audio_embeddings, true_labels,captions, method="tsne")
 
 
 def plot_embedding_visualization(embeddings, labels, label_names, method="pca", n_components=2):
@@ -137,17 +137,18 @@ def plot_embedding_visualization(embeddings, labels, label_names, method="pca", 
 
 
 # Initialize the processor and model
-# processor = ClapProcessor.from_pretrained("laion/clap-htsat-fused")
-# model = ClapModel.from_pretrained("laion/clap-htsat-fused")
-# model = get_CLAP_LoRa(8, 16)
+processor = ClapProcessor.from_pretrained("laion/clap-htsat-fused")
+model = ClapModel.from_pretrained("laion/clap-htsat-fused")
+# model = get_CLAP_LoRa(16, 32)
 
-# model.load_state_dict(torch.load("drive-download-20240922T131907Z-001/model_epoch_12_lr0.0001_a16r8,.pt", map_location=torch.device('cpu')))
+# model.load_state_dict(torch.load("esc50_model_epoch_6_lr0.0001_a32r16.pt", map_location=torch.device('cpu')))
 # DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 # model.to(DEVICE)
-# model.eval()
+model.eval()
 #
 # train_loader, test_loader =get_esc50_data_loaders(True)
-# evaluate(processor, model, train_loader)
+train_loader, test_loader =get_music_genres_data_loaders(False)
+evaluate(processor, model, test_loader)
 
 # for i in train_loader:
 #     # print(i)
