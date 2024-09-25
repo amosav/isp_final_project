@@ -92,7 +92,7 @@ class Pipeline:
                   f"Validation Loss: {validation_loss / len(self.test_loader)}")
 
         torch.save(self.model.state_dict(), f"{self.save_path}/{self.model_name}")
-        self.plot_loss(train_losses, validation_losses)
+        self.plot_loss(train_losses, validation_losses, accuracy)
 
     def plot_loss(self, train_losses, test_losses, accuracy):
         train_losses_x = range(1, len(train_losses) + 1)
