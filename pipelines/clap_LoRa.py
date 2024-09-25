@@ -3,6 +3,7 @@ import sys
 
 import torch
 from matplotlib import pyplot as plt
+from sklearn.metrics import accuracy_score
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from tqdm import tqdm
 from transformers import AutoProcessor
@@ -53,6 +54,7 @@ class Pipeline:
     def train(self):
         train_losses = []
         validation_losses = []
+        accuracy = []
         for epoch in range(self.num_epochs):
             self.model.train()
             train_loss = 0 # Initialize loss
@@ -81,8 +83,8 @@ class Pipeline:
                 )
                 loss = self.loss(preds['audio_embeds'], preds['text_embeds'])
                 validation_loss += loss.item()
-            torch.save(self.model.state_dict(), f"{self.save_path}/{self.model_name}")
-            evaluate(processor, self.model, self.test_loader)
+            accuracy.append(evaluate(processor, self.model, self.test_loader))
+
             train_losses.append(train_loss / len(self.train_loader))
             validation_losses.append(validation_loss / len(self.test_loader))
             print(f"Epoch            {epoch + 1}\n"
@@ -92,7 +94,7 @@ class Pipeline:
         torch.save(self.model.state_dict(), f"{self.save_path}/{self.model_name}")
         self.plot_loss(train_losses, validation_losses)
 
-    def plot_loss(self, train_losses, test_losses):
+    def plot_loss(self, train_losses, test_losses, accuracy):
         train_losses_x = range(1, len(train_losses) + 1)
         plt.plot(train_losses_x, train_losses, label="Train Loss")
         plt.plot(train_losses_x, test_losses, label="Validation Loss")
@@ -101,6 +103,12 @@ class Pipeline:
         plt.title("Loss")
         plt.legend()
         plt.savefig(f"{self.save_path}/{self.model_name}_training_loss.png")
+        plt.figure()
+        plt.plot(range(1, len(accuracy) + 1), accuracy, label="Accuracy")
+        plt.xlabel("Epoch")
+        plt.ylabel("Acc")
+        plt.title("Accuracy")
+        plt.savefig(f"{self.save_path}/{self.model_name}_accuravy.png")
 
     def init_model(self, r, alpha):
         return get_CLAP_LoRa(r, alpha)
@@ -119,7 +127,7 @@ if __name__ == '__main__':
     args = sys.argv[1:]
     if len(args) == 4:
         lr, r, alpha, data_type = args
-        pipeline = Pipeline(num_epochs=12,
+        pipeline = Pipeline(num_epochs=6,
                             lr=float(lr),
                             batch_size=32,
                             save_path=save_path,
