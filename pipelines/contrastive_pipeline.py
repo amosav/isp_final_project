@@ -1,93 +1,143 @@
-import matplotlib.pyplot as plt
+import os
+import sys
+
 import torch
+from matplotlib import pyplot as plt
+from sklearn.metrics import accuracy_score
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from tqdm import tqdm
-# from audio_datasets.librispeech_asr import get_wrapped_dataset
+from transformers import AutoProcessor
+
+from audio_datasets.music_genres_dataset import get_music_genres_data_loaders
+from evaluation import evaluate
+from models.naive_model import AudioEmbeddingModel
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-from loss import contrastive_loss
-from models.naive_model import AudioEmbeddingModel
+if DEVICE == "cuda":
+    sys.path.append('/content/py/isp_final_project') # for colab :)
+
+processor = AutoProcessor.from_pretrained("laion/clap-htsat-fused")
+from audio_datasets.esc50_dataset import get_esc50_data_loaders
+from loss import clap_loss
+from models.model_utils import get_CLAP_LoRa
 
 
 class Pipeline:
     def __init__(self,
                  num_epochs,
                  lr,
-                 batch_size,):
+                 batch_size,
+                 r: int = 16,
+                 alpha: int = 32,
+                 save_path: str = "/content/drive/MyDrive/isp_final_project/",
+                 data_type: str = "esc50"):
         self.num_epochs = num_epochs
         self.lr = lr
         self.batch_size = batch_size
-        self.model = self.init_model()
+        self.model = self.init_model(r, alpha)
         self.optimizer, self.scheduler = self.init_optimizer()
-        self.train_loader = self.init_data()
+        self.train_loader, self.test_loader = self.init_data(data_type)
         self.loss = self.init_loss()
+        self.save_path = save_path
+        self.model_name = f"{data_type}_model_epoch_{self.num_epochs }_lr{self.lr}_a{alpha}r{r}.pt"
 
-    def init_data(self):
-        return get_wrapped_dataset(batch_size=self.batch_size)
+    def init_save_path(self):
+        os.makedirs(self.save_path, exist_ok=True)
+        os.makedirs(os.path.join(self.save_path, "checkpoints"), exist_ok=True)
+
+    def init_data(self, data_type="esc50"):
+        print(f"Loading {data_type} data..." )
+        if data_type == "esc50":
+            return get_esc50_data_loaders(True, self.batch_size)
+        elif data_type == "music_genres":
+            return get_music_genres_data_loaders(True, self.batch_size)
 
     def train(self):
         train_losses = []
+        validation_losses = []
+        accuracy = []
+        accuracy.append(evaluate(processor, self.model, self.test_loader))
+
         for epoch in range(self.num_epochs):
             self.model.train()
             train_loss = 0 # Initialize loss
-            for batch in tqdm(self.train_loader):
-                input_values = batch["input_values"].to(DEVICE)
-                speaker_ids = batch["speaker_ids"]
-
-                # Generate positive and negative pairs
-                batch_size = input_values.size(0)
-                half_batch = batch_size // 2
-                anchor, positive = input_values[:half_batch], input_values[half_batch:]
-
-                # Positive pairs: same speaker
-                labels = torch.tensor(
-                    [1 if speaker_ids[i] == speaker_ids[half_batch + i] else 0 for i in range(half_batch)],
-                    dtype=torch.float32).to(DEVICE)
-
-                # Compute embeddings
-                embedding_anchor = self.model(anchor)
-                embedding_positive = self.model(positive)
-
-                # Compute contrastive loss
-                loss = self.loss(embedding_anchor, embedding_positive, labels)
+            validation_loss = 0
+            for batch, categories in tqdm(self.train_loader):
+                preds = self.model(
+                    is_longer=batch['is_longer'].to(DEVICE),
+                    input_ids=batch['input_ids'].squeeze(1).to(DEVICE),  # Text input
+                    input_features=batch['input_features'].squeeze(1).to(DEVICE),  # Audio input
+                    attention_mask=batch['attention_mask'].to(DEVICE)
+                )
+                loss = self.loss(preds['audio_embeds'], preds['text_embeds'])
                 train_loss += loss.item()
                 # Backward pass and optimization
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
                 self.scheduler.step()
-            torch.save(self.model.state_dict(), f"model_epoch_{epoch + 1}.pt")
-            train_loss.append(train_loss / len(self.train_loader))
-            print(f"Epoch {epoch + 1}, Loss: {train_loss / len(self.train_loader)}")
-        self.plot_loss(train_losses)
+            self.model.eval()
+            for batch, categories in tqdm(self.test_loader):
+                preds = self.model(
+                    is_longer=batch['is_longer'].to(DEVICE),
+                    input_ids=batch['input_ids'].squeeze(1).to(DEVICE),  # Text input
+                    input_features=batch['input_features'].squeeze(1).to(DEVICE),  # Audio input
+                    attention_mask=batch['attention_mask'].to(DEVICE)
+                )
+                loss = self.loss(preds['audio_embeds'], preds['text_embeds'])
+                validation_loss += loss.item()
+            accuracy.append(evaluate(processor, self.model, self.test_loader))
 
-    def plot_loss(self, train_losses):
+            train_losses.append(train_loss / len(self.train_loader))
+            validation_losses.append(validation_loss / len(self.test_loader))
+            print(f"Epoch            {epoch + 1}\n"
+                  f"Train Loss:      {train_loss / len(self.train_loader)}\n"
+                  f"Validation Loss: {validation_loss / len(self.test_loader)}")
+
+        torch.save(self.model.state_dict(), f"{self.save_path}/{self.model_name}")
+        self.plot_loss(train_losses, validation_losses, accuracy)
+
+    def plot_loss(self, train_losses, test_losses, accuracy):
         train_losses_x = range(1, len(train_losses) + 1)
         plt.plot(train_losses_x, train_losses, label="Train Loss")
+        plt.plot(train_losses_x, test_losses, label="Validation Loss")
         plt.xlabel("Epochs")
         plt.ylabel("Loss")
-        plt.title("Training Loss")
-        plt.savefig("training_loss.png")
+        plt.title("Loss")
+        plt.legend()
+        plt.savefig(f"{self.save_path}/{self.model_name}_training_loss.png")
+        plt.figure()
+        plt.plot(range(1, len(accuracy) + 1), accuracy, label="Accuracy")
+        plt.xlabel("Epoch")
+        plt.ylabel("Acc")
+        plt.title("Accuracy")
+        plt.savefig(f"{self.save_path}/{self.model_name}_accuracy.png")
 
     def init_model(self):
         return AudioEmbeddingModel()
 
     def init_loss(self):
-        return contrastive_loss
+        return clap_loss
 
     def init_optimizer(self):
         optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
         scheduler = CosineAnnealingLR(optimizer, T_max=self.num_epochs, eta_min=1e-5)
         return optimizer, scheduler
 
-from transformers import AutoProcessor, AutoModel
 
-# Load the processor and model
-processor = AutoProcessor.from_pretrained("laion/clap-htsat-fused")
-model = AutoModel.from_pretrained("laion/clap-htsat-fused")
-dataset = get_wrapped_dataset(16)
-
-# pipeline = Pipeline(num_epochs=20, lr=1e-3, batch_size=32)
-for i in dataset:
-    print(i)
-# pipeline.train()
+if __name__ == '__main__':
+    save_path = "/content/drive/MyDrive/isp_final_project_small/"
+    args = sys.argv[1:]
+    if len(args) == 4:
+        lr, r, alpha, data_type = args
+        pipeline = Pipeline(num_epochs=6,
+                            lr=float(lr),
+                            batch_size=32,
+                            save_path=save_path,
+                            r=int(r),
+                            alpha=int(alpha),
+                            data_type=data_type
+                            )
+        pipeline.train()
+    else:
+        print("Usage: python pipeline.py num_epochs lr batch_size")

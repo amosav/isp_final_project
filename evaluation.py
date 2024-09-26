@@ -1,19 +1,21 @@
 import torch
 import torch.nn.functional as F
 from sklearn.metrics import accuracy_score, confusion_matrix
+from tqdm import tqdm
+from transformers import ClapModel, AutoProcessor
 
+from audio_datasets.music_genres_dataset import get_music_genres_data_loaders
+from classification import train_loader
 from visualization import plot_embedding_visualization, plot_cm
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 
-def classify_with_cosine_similarity(model, train_loader, caption_embeddings, caption_labels):
+def classify_with_cosine_similarity(model, train_loader, caption_embeddings):
     all_predictions = []
     all_true_labels = []
     all_audio_embeddings = []
-    for batch in train_loader:
-        audio_features, true_labels = batch  # Unpack the batch (features and true labels)
-
+    for audio_features, true_labels in tqdm(train_loader):
         # Extract audio embeddings from the model
         with torch.no_grad():
             preds = model(
@@ -55,7 +57,7 @@ def evaluate(processor, model, loader, plot_visualization=False):
         caption_embeddings.append(text_embedding)
     caption_embeddings = torch.stack(caption_embeddings)
     values_list = list(captions.values())
-    pred, true_labels, audio_embeddings = classify_with_cosine_similarity(model, loader, caption_embeddings, values_list)
+    pred, true_labels, audio_embeddings = classify_with_cosine_similarity(model, loader, caption_embeddings,)
 
     accuracy = accuracy_score(true_labels, pred)
     print(f"Accuracy: {accuracy * 100:.2f}%")
@@ -65,3 +67,10 @@ def evaluate(processor, model, loader, plot_visualization=False):
         plot_cm(captions, cm)
         plot_embedding_visualization(audio_embeddings, true_labels, captions, method="tsne")
     return accuracy
+
+
+model = ClapModel.from_pretrained("laion/clap-htsat-fused")
+processor = AutoProcessor.from_pretrained("laion/clap-htsat-fused")
+model.eval()
+train_loader, test_loader = get_music_genres_data_loaders(manipulate_prompt=True, batch_size=16)
+evaluate(processor, model, test_loader, plot_visualization=True)

@@ -1,12 +1,14 @@
+import os
 import random
 
 import librosa
 import torch
-from datasets import load_dataset, Dataset
+from datasets import load_dataset
 from torch.utils.data import IterableDataset, DataLoader, random_split
 from transformers import AutoProcessor
 from transformers import ClapProcessor
 
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 SEED = 42
 torch.manual_seed(SEED)
 
@@ -63,8 +65,8 @@ class MusicGenresCLAPDataset(IterableDataset):
         """
         # self.dataset = load_dataset("librispeech_asr", split=split, streaming=True)
         self.prompt_function = prompt_function
-        self.dataset = load_dataset("lewtun/music_genres", split=split)
-        self.processor = processor or AutoProcessor.from_pretrained("lewtun/music_genres")
+        self.dataset = load_dataset("lewtun/music_genres_small", split=split)
+        self.processor = processor or AutoProcessor.from_pretrained("lewtun/music_genres_small")
         self.max_length = max_length
         self.target_sampling_rate = 48000
         # genre_values = self.dataset.features['genre'].names
