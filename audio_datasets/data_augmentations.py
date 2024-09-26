@@ -1,5 +1,8 @@
+import numpy as np
 import torch
-
+import random
+import torchaudio
+from scipy import signal
 
 def collate_fn(batch):
     """
@@ -30,3 +33,31 @@ def collate_fn(batch):
         collated_batch[key] = torch.stack(padded_values)
 
     return collated_batch, torch.tensor(labels)
+
+
+def random_crop(audio, max_length, crop_length):
+    if crop_length >= max_length:
+        return audio
+    start = random.randint(0, max_length - crop_length)
+    return audio[start:start + crop_length]
+
+
+def add_colored_noise(audio, snr_db, color='pink'):
+    white_noise = np.random.randn(len(audio))
+    # Apply filter for pink noise
+    if color == 'pink':
+        b, a = signal.butter(1, 0.2, btype='low')  # Low-pass filter for pink noise
+        noise = signal.lfilter(b, a, white_noise)
+    else:
+        noise = white_noise  # Default white noise
+
+    # Adjust noise to desired SNR
+    audio_power = torch.mean(audio ** 2)
+    noise_power = audio_power / (10 ** (snr_db / 10))
+    noise = torch.tensor(noise)
+    noise = noise * torch.sqrt(noise_power / torch.mean(noise ** 2))
+
+    # Add noise to audio
+    noisy_audio = audio + noise
+    return np.clip(noisy_audio, -1.0, 1.0)
+

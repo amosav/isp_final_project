@@ -27,33 +27,36 @@ class Pipeline:
                  r: int = 16,
                  alpha: int = 32,
                  save_path: str = "/content/drive/MyDrive/isp_final_project/",
-                 data_type: str = "esc50"):
+                 data_type: str = "esc50",
+                 add_noise: bool = False):
         self.num_epochs = num_epochs
         self.lr = lr
         self.batch_size = batch_size
         self.model = self.init_model(r, alpha)
         self.optimizer, self.scheduler = self.init_optimizer()
-        self.train_loader, self.test_loader = self.init_data(data_type)
+        self.train_loader, self.test_loader = self.init_data(data_type, add_noise)
         self.loss = self.init_loss()
         self.save_path = save_path
         self.model_name = f"{data_type}_model_epoch_{self.num_epochs }_lr{self.lr}_a{alpha}r{r}.pt"
+        if add_noise:
+            self.model_name = f"{data_type}_model_epoch_{self.num_epochs }_lr{self.lr}_a{alpha}r{r}_noise.pt"
 
     def init_save_path(self):
         os.makedirs(self.save_path, exist_ok=True)
         os.makedirs(os.path.join(self.save_path, "checkpoints"), exist_ok=True)
 
-    def init_data(self, data_type="esc50"):
+    def init_data(self, data_type="esc50", add_noise=False):
         print(f"Loading {data_type} data..." )
         if data_type == "esc50":
             return get_esc50_data_loaders(True, self.batch_size)
         elif data_type == "music_genres":
-            return get_music_genres_data_loaders(True, self.batch_size)
+            return get_music_genres_data_loaders(True, self.batch_size, add_noise)
 
     def train(self):
         train_losses = []
         validation_losses = []
         accuracy = []
-        accuracy.append(evaluate(processor, self.model, self.test_loader))
+        # accuracy.append(evaluate(processor, self.model, self.test_loader))
         for epoch in range(self.num_epochs):
             self.model.train()
             train_loss = 0 # Initialize loss
@@ -124,16 +127,16 @@ class Pipeline:
 if __name__ == '__main__':
     save_path = "/content/drive/MyDrive/isp_final_project/"
     args = sys.argv[1:]
-    if len(args) == 4:
-        lr, r, alpha, data_type = args
+    if len(args) == 5:
+        lr, r, alpha, data_type, noise = args
         pipeline = Pipeline(num_epochs=30,
                             lr=float(lr),
                             batch_size=32,
                             save_path=save_path,
                             r=int(r),
                             alpha=int(alpha),
-                            data_type=data_type
-                            )
+                            data_type=data_type,
+                            add_noise=noise == "True")
         pipeline.train()
     else:
         print("Usage: python pipeline.py num_epochs lr batch_size")

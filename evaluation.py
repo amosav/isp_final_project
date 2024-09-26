@@ -67,9 +67,9 @@ def evaluate(processor, model, loader, plot_visualization=False):
         plot_embedding_visualization(audio_embeddings, true_labels, captions, method="tsne")
     return accuracy
 
-
-model = ClapModel.from_pretrained("laion/clap-htsat-fused")
-processor = AutoProcessor.from_pretrained("laion/clap-htsat-fused")
-model.eval()
-train_loader, test_loader = get_music_genres_data_loaders(manipulate_prompt=True, batch_size=16)
-evaluate(processor, model, test_loader, plot_visualization=True)
+#
+# model = ClapModel.from_pretrained("laion/clap-htsat-fused")
+# processor = AutoProcessor.from_pretrained("laion/clap-htsat-fused")
+# model.eval()
+# train_loader, test_loader = get_music_genres_data_loaders(manipulate_prompt=True, batch_size=16)
+# evaluate(processor, model, test_loader, plot_visualization=True)
