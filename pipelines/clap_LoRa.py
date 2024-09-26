@@ -1,9 +1,9 @@
 import os
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 import sys
 
 import torch
 from matplotlib import pyplot as plt
-from sklearn.metrics import accuracy_score
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from tqdm import tqdm
 from transformers import AutoProcessor
@@ -12,8 +12,6 @@ from audio_datasets.music_genres_dataset import get_music_genres_data_loaders
 from evaluation import evaluate
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-if DEVICE == "cuda":
-    sys.path.append('/content/py/isp_final_project') # for colab :)
 
 processor = AutoProcessor.from_pretrained("laion/clap-htsat-fused")
 from audio_datasets.esc50_dataset import get_esc50_data_loaders
@@ -128,7 +126,7 @@ if __name__ == '__main__':
     args = sys.argv[1:]
     if len(args) == 4:
         lr, r, alpha, data_type = args
-        pipeline = Pipeline(num_epochs=6,
+        pipeline = Pipeline(num_epochs=30,
                             lr=float(lr),
                             batch_size=32,
                             save_path=save_path,

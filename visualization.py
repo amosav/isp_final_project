@@ -2,7 +2,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
-
+import seaborn as sns
 
 def plot_embedding_visualization(embeddings, labels, label_names, method="pca", n_components=2):
     """

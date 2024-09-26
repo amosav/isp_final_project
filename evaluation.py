@@ -5,7 +5,6 @@ from tqdm import tqdm
 from transformers import ClapModel, AutoProcessor
 
 from audio_datasets.music_genres_dataset import get_music_genres_data_loaders
-from classification import train_loader
 from visualization import plot_embedding_visualization, plot_cm
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -73,4 +72,4 @@ model = ClapModel.from_pretrained("laion/clap-htsat-fused")
 processor = AutoProcessor.from_pretrained("laion/clap-htsat-fused")
 model.eval()
 train_loader, test_loader = get_music_genres_data_loaders(manipulate_prompt=True, batch_size=16)
-evaluate(processor, model, test_loader, plot_visualization=True)
+evaluate(processor, model, test_loader, plot_visualization=False)
