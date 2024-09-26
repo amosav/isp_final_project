@@ -4,6 +4,7 @@ from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 import seaborn as sns
 
+
 def plot_embedding_visualization(embeddings, labels, label_names, method="pca", n_components=2):
     """
     Visualizes high-dimensional embeddings using PCA or t-SNE and adds label names directly on the plot.
@@ -49,9 +50,11 @@ def plot_embedding_visualization(embeddings, labels, label_names, method="pca", 
 
 
 def plot_cm(captions, cm):
+    cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]#show rate
     plt.figure(figsize=(10, 7))
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=captions, yticklabels=captions)
+    sns.heatmap(cm, annot=True, fmt='.2f', cmap='Blues', xticklabels=captions, yticklabels=captions)# 'd'
     plt.xlabel('Predicted Labels')
     plt.ylabel('True Labels')
     plt.title('Confusion Matrix')
+    plt.tight_layout()
     plt.show()
