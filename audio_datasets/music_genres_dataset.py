@@ -60,7 +60,7 @@ class MusicGenresCLAPDataset(IterableDataset):
             color = random.choice(self.color_noise)
             audio = add_colored_noise(torch.tensor(audio), snr_db, color)
         if random.uniform(0, 1) <self.color_augment_prob:
-            audio = spec_augment(audio, self.target_sampling_rate, time_mask_param=30, freq_mask_param=15)
+            audio = spec_augment(torch.tensor(audio), self.target_sampling_rate, time_mask_param=30, freq_mask_param=15)
         return audio
 
 
@@ -138,9 +138,9 @@ def get_music_genres_data_loaders(manipulate_prompt, batch_size=16, add_noise=Fa
     print("Noise is ", add_noise)
     train_size = int(0.8 * len(train_dataset))
     test_size = len(train_dataset) - train_size
-    train_dataset, test_dataset = random_split(train_dataset, [train_size, test_size])
+    train_dataset, test_dataset = random_split(train_dataset, [train_size, test_size], generator=torch.Generator().manual_seed(SEED))
 
     # Create DataLoader objects for train and test sets
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn, num_workers=4)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_fn, num_workers=4)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_fn)
     return train_loader, test_loader
