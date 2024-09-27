@@ -129,7 +129,7 @@ if __name__ == '__main__':
     args = sys.argv[1:]
     if len(args) == 5:
         lr, r, alpha, data_type, noise = args
-        pipeline = Pipeline(num_epochs=30,
+        pipeline = Pipeline(num_epochs=12,
                             lr=float(lr),
                             batch_size=32,
                             save_path=save_path,
