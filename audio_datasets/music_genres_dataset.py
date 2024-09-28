@@ -8,7 +8,7 @@ from torch.utils.data import IterableDataset, DataLoader, random_split
 from transformers import AutoProcessor
 from transformers import ClapProcessor
 
-from audio_datasets.data_augmentations import collate_fn, random_crop, add_colored_noise
+from audio_datasets.data_augmentations import collate_fn, random_crop, add_colored_noise, spec_augment
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 SEED = 42
@@ -44,6 +44,7 @@ class MusicGenresCLAPDataset(IterableDataset):
         self.color_noise = ['white', 'pink']
         self.color_noise_prob = 0.15
         self.augment = augment
+        self.color_augment_prob = 0.4
         # genre_values = self.dataset.features['genre'].names
         self.categories_id = {category: i for i, category in enumerate(set(self.dataset['genre']))}
 
@@ -55,10 +56,12 @@ class MusicGenresCLAPDataset(IterableDataset):
             return audio
         audio = random_crop(audio, len(audio), int(length))
 
-        if random.uniform(0, 1) < 12:
+        if random.uniform(0, 1) < self.color_noise_prob:
             snr_db = random.uniform(*self.snr_range)
             color = random.choice(self.color_noise)
             audio = add_colored_noise(torch.tensor(audio), snr_db, color)
+        if random.uniform(0, 1) <self.color_augment_prob:
+            audio = spec_augment(torch.tensor(audio), self.target_sampling_rate, time_mask_param=30, freq_mask_param=15)
         return audio
 
 
@@ -138,8 +141,7 @@ def get_music_genres_data_loaders(manipulate_prompt, batch_size=16, add_noise=Fa
     test_size = len(train_dataset) - train_size
     train_dataset, test_dataset = random_split(train_dataset, [train_size, test_size], generator=torch.Generator().manual_seed(SEED))
 
-
     # Create DataLoader objects for train and test sets
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)#, num_workers=4)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_fn)#, num_workers=4)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn, num_workers=4)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_fn, num_workers=4)
     return train_loader, test_loader

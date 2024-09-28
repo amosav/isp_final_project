@@ -3,7 +3,8 @@ import torch
 import random
 import torchaudio
 from scipy import signal
-
+import librosa
+import torchaudio.transforms as T
 def collate_fn(batch):
     """
     Custom collate function to handle varying lengths of text and audio.
@@ -60,4 +61,19 @@ def add_colored_noise(audio, snr_db, color='pink'):
     # Add noise to audio
     noisy_audio = audio + noise
     return np.clip(noisy_audio, -1.0, 1.0)
+
+from torchaudio.transforms import TimeMasking, FrequencyMasking
+
+def spec_augment(audio, sr, time_mask_param=30, freq_mask_param=15):
+    # Convert audio to spectrogram using librosa
+    mel_spectrogram_transform = T.MelSpectrogram( sample_rate=sr,n_fft=1024, win_length=1024, hop_length=512, n_mels=80)
+    time_masking = TimeMasking(time_mask_param=time_mask_param)
+    freq_masking = FrequencyMasking(freq_mask_param=freq_mask_param)
+    spec_augmented = freq_masking(time_masking(mel_spectrogram_transform(audio.float())))
+    mel_to_spec_transform = T.InverseMelScale(n_stft=(1024 // 2 + 1), n_mels=80)
+    griffin_lim_transform = T.GriffinLim(n_fft=1024, hop_length=512)
+    spectrogram = mel_to_spec_transform(spec_augmented)
+    return  griffin_lim_transform(spectrogram)
+
+
 
