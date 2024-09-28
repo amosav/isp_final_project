@@ -51,7 +51,8 @@ class MusicGenresCLAPDataset(IterableDataset):
         if original_sampling_rate != self.target_sampling_rate:
             audio = librosa.resample(audio.numpy(), orig_sr=original_sampling_rate, target_sr=self.target_sampling_rate)
         length = random.uniform(MIN_SECOND_LENGTH, MAX_SECOND_LENGTH) * self.target_sampling_rate
-
+        if not self.augment:
+            return audio
         audio = random_crop(audio, len(audio), int(length))
 
         if random.uniform(0, 1) < 12:
@@ -135,9 +136,10 @@ def get_music_genres_data_loaders(manipulate_prompt, batch_size=16, add_noise=Fa
     print("Noise is ", add_noise)
     train_size = int(0.8 * len(train_dataset))
     test_size = len(train_dataset) - train_size
-    train_dataset, test_dataset = random_split(train_dataset, [train_size, test_size])
+    train_dataset, test_dataset = random_split(train_dataset, [train_size, test_size], generator=torch.Generator().manual_seed(SEED))
+
 
     # Create DataLoader objects for train and test sets
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn, num_workers=4)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_fn, num_workers=4)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)#, num_workers=4)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_fn)#, num_workers=4)
     return train_loader, test_loader

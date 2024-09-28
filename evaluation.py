@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 import torch.nn.functional as F
 from sklearn.metrics import accuracy_score, confusion_matrix
@@ -5,6 +6,7 @@ from tqdm import tqdm
 from transformers import ClapModel, AutoProcessor
 
 from audio_datasets.music_genres_dataset import get_music_genres_data_loaders
+from models.model_utils import get_CLAP_LoRa
 from visualization import plot_embedding_visualization, plot_cm
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -58,6 +60,11 @@ def evaluate(processor, model, loader, plot_visualization=False):
     values_list = list(captions.values())
     pred, true_labels, audio_embeddings = classify_with_cosine_similarity(model, loader, caption_embeddings,)
 
+    for caption, embedding in zip(captions, caption_embeddings):
+        # print(f"{caption}: {embedding}")
+        caption_similarity = torch.cosine_similarity(audio_embeddings, embedding.unsqueeze(0), dim=1)
+        best_5_matches = torch.topk(caption_similarity, k=10).indices.tolist()
+        print(f"R@10 for {captions[caption]} is {np.sum(np.array(true_labels)[best_5_matches] == captions[caption])/ 10} ")
     accuracy = accuracy_score(true_labels, pred)
     print(f"Accuracy: {accuracy * 100:.2f}%")
 
@@ -67,9 +74,9 @@ def evaluate(processor, model, loader, plot_visualization=False):
         plot_embedding_visualization(audio_embeddings, true_labels, captions, method="tsne")
     return accuracy
 
-#
-# model = ClapModel.from_pretrained("laion/clap-htsat-fused")
-# processor = AutoProcessor.from_pretrained("laion/clap-htsat-fused")
-# model.eval()
-# train_loader, test_loader = get_music_genres_data_loaders(manipulate_prompt=True, batch_size=16)
-# evaluate(processor, model, test_loader, plot_visualization=True)
+processor = AutoProcessor.from_pretrained("laion/clap-htsat-fused")
+model = get_CLAP_LoRa(r=4, alpha=4)
+model.to(DEVICE)
+model.load_state_dict(torch.load(r"C:\Users\amos1\Downloads\music_genres_model_epoch_12_lr0.001_a4r4_noise.pt", map_location=DEVICE))
+train_loader, test_loader = get_music_genres_data_loaders(manipulate_prompt=True, batch_size=16)
+evaluate(processor, model, test_loader, plot_visualization=True)
