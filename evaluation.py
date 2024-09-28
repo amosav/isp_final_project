@@ -1,16 +1,16 @@
-import numpy as np
+import os
+
 import torch
-import torch.nn.functional as F
 from sklearn.metrics import accuracy_score, confusion_matrix
 from tqdm import tqdm
-from transformers import ClapModel, AutoProcessor
+from transformers import AutoProcessor, ClapModel
 
-from audio_datasets.music_genres_dataset import get_music_genres_data_loaders
+from audio_datasets.music_genres_dataset import get_music_genres_data_loaders, generate_prompt
 from models.model_utils import get_CLAP_LoRa
-from visualization import plot_embedding_visualization, plot_cm
+from visualization import plot_embedding_visualization, plot_cm, plot_recall_at_ks
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-
+K_S = [1, 5, 10]
 
 def classify_with_cosine_similarity(model, train_loader, caption_embeddings):
     all_predictions = []
@@ -19,20 +19,15 @@ def classify_with_cosine_similarity(model, train_loader, caption_embeddings):
     for audio_features, true_labels in tqdm(train_loader):
         # Extract audio embeddings from the model
         with torch.no_grad():
-            preds = model(
+            audio_embeds = model.get_audio_features(
                 is_longer=audio_features['is_longer'].to(DEVICE),
-                input_ids=audio_features['input_ids'].squeeze(1).to(DEVICE),  # Text input
                 input_features=audio_features['input_features'].squeeze(1).to(DEVICE),  # Audio input
                 attention_mask=audio_features['attention_mask'].to(DEVICE))
 
         # Calculate cosine similarity with all caption embeddings
-        batch_norm = F.normalize(preds['audio_embeds'], p=2, dim=1)
-        reference_set_norm = F.normalize(caption_embeddings, p=2, dim=1)
-        similarities = torch.mm(batch_norm, reference_set_norm.t())
-        all_audio_embeddings.append(batch_norm)
+        similarities = torch.mm(audio_embeds, caption_embeddings.t())
+        all_audio_embeddings.append(audio_embeds)
         best_matches = torch.argmax(similarities, dim=1)
-
-        # Map best matches to predicted labels
 
         all_predictions.extend(best_matches.tolist())
         all_true_labels.extend(true_labels.tolist())
@@ -41,42 +36,94 @@ def classify_with_cosine_similarity(model, train_loader, caption_embeddings):
 
     return all_predictions, all_true_labels, all_audio_embeddings
 
+def simple_eval_for_training(processor, model, loader):
+    model.eval()
+    caption_embeddings, captions = get_captions_embeddings(loader, model, processor)
+    pred, true_labels, audio_embeddings = classify_with_cosine_similarity(model, train_loader, caption_embeddings)
+    accuracy = accuracy_score(true_labels, pred)
+    print(f"Accuracy: {accuracy * 100:.2f}%")
+    return accuracy
 
-def evaluate(processor, model, loader, plot_visualization=False):
+
+def evaluate(processor, model, loader, model_name):
     model.eval()  # Set the model to evaluation mode
-    # Example captions (replace with actual categories from the dataset)
+    caption_embeddings, captions = get_captions_embeddings(loader, model, processor)
+
+    pred, true_labels, audio_embeddings = classify_with_cosine_similarity(model, loader, caption_embeddings,)
+    cm = confusion_matrix(true_labels, pred)
+
+    recall_at_ks = calculate_recall_at_ks(audio_embeddings, caption_embeddings, true_labels)
+    plot_cm(captions, cm, save_path=f"confusion_matrix_{model_name}.png")
+    plot_embedding_visualization(audio_embeddings, true_labels, captions, method="tsne", save_path=f"tsne_{model_name}.png")
+    return recall_at_ks
+
+
+def get_captions_embeddings(loader, model, processor):
     captions = loader.dataset.dataset.categories_id
     # Generate caption embeddings and store them
     caption_embeddings = []
     for caption, idx in captions.items():
-        inputs = processor(text=caption, return_tensors="pt", padding=True, truncation=True)
-        for k, v in inputs.items():
-          inputs[k] = v.to(DEVICE)
+        prompt = generate_prompt(caption)
+        inputs = processor(text=prompt, return_tensors="pt", padding=True, truncation=True)
         with torch.no_grad():
-            text_embedding = model.get_text_features(**inputs).squeeze(0)  # Get text embeddings
+            text_embedding = model.get_text_features(
+                input_ids=inputs['input_ids'].squeeze(1).to(DEVICE),
+                attention_mask=inputs['attention_mask'].to(DEVICE)
+            ).squeeze(0)  # Get text embeddings
 
         caption_embeddings.append(text_embedding)
     caption_embeddings = torch.stack(caption_embeddings)
-    values_list = list(captions.values())
-    pred, true_labels, audio_embeddings = classify_with_cosine_similarity(model, loader, caption_embeddings,)
+    return caption_embeddings, captions
 
-    for caption, embedding in zip(captions, caption_embeddings):
-        # print(f"{caption}: {embedding}")
-        caption_similarity = torch.cosine_similarity(audio_embeddings, embedding.unsqueeze(0), dim=1)
-        best_5_matches = torch.topk(caption_similarity, k=10).indices.tolist()
-        print(f"R@10 for {captions[caption]} is {np.sum(np.array(true_labels)[best_5_matches] == captions[caption])/ 10} ")
-    accuracy = accuracy_score(true_labels, pred)
-    print(f"Accuracy: {accuracy * 100:.2f}%")
 
-    if plot_visualization:
-        cm = confusion_matrix(true_labels, pred)
-        plot_cm(captions, cm)
-        plot_embedding_visualization(audio_embeddings, true_labels, captions, method="tsne")
-    return accuracy
+def calculate_recall_at_ks(audio_embeddings, caption_embeddings, true_labels):
+    audio_embeddings = torch.nn.functional.normalize(audio_embeddings, dim=-1)
+    caption_embeddings = torch.nn.functional.normalize(caption_embeddings, dim=-1)
+    similarity_matrix = torch.matmul(audio_embeddings, caption_embeddings.T)
+    top_k_indices = torch.argsort(similarity_matrix, dim=-1, descending=True)
+
+    # Convert true labels to a tensor for easy comparison
+    true_labels = torch.tensor(true_labels, dtype=torch.long, device=DEVICE)
+
+    recalls = {}
+    for k in K_S:
+        # Check if the true label is in the top k predictions
+        top_k_predictions = top_k_indices[:, :k]  # Shape: (num_audio, k)
+        correct_predictions = (top_k_predictions == true_labels.unsqueeze(1)).any(dim=1)  # Shape: (num_audio,)
+        recall_at_k = correct_predictions.float().mean().item()  # Calculate mean of correct predictions
+        recalls[k] = recall_at_k
+
+    return recalls
+
 
 processor = AutoProcessor.from_pretrained("laion/clap-htsat-fused")
-model = get_CLAP_LoRa(r=4, alpha=4)
-model.to(DEVICE)
-model.load_state_dict(torch.load(r"C:\Users\amos1\Downloads\music_genres_model_epoch_12_lr0.001_a4r4_noise.pt", map_location=DEVICE))
+checkpoint_paths = [
+    (r"C:\isp_checkpoints\music_genres_variations\music_genres_model_epoch_12_lr0.0001_a16r16_noise.pt", 16, 16),
+    (r"C:\isp_checkpoints\music_genres_variations\music_genres_model_epoch_12_lr0.001_a32r8_noise.pt", 32, 8),
+    (r"C:\isp_checkpoints\music_genres_variations\music_genres_model_epoch_12_lr0.001_a32r16_noise.pt", 32, 16),
+    (r"C:\isp_checkpoints\music_genres_variations\music_genres_model_epoch_12_lr0.001_a32r32_noise.pt", 32, 32),
+    (r"C:\isp_checkpoints\music_genres_variations\music_genres_model_epoch_12_lr0.001_a64r32_noise.pt", 64, 32),
+    (r"C:\isp_checkpoints\music_genres_variations\music_genres_model_epoch_12_lr0.0005_a32r16_noise.pt", 32, 16),
+]
+
+
 train_loader, test_loader = get_music_genres_data_loaders(manipulate_prompt=True, batch_size=16)
-evaluate(processor, model, test_loader, plot_visualization=True)
+
+
+def evaluate_all_models():
+    model_recall = {}
+    model = ClapModel.from_pretrained("laion/clap-htsat-fused")
+    model.eval()
+    model.to(DEVICE)
+    model_name = "CLAP"
+    model_recall[model_name] = simple_eval_for_training(processor, model, train_loader)
+    for ckpt, alpha, r in checkpoint_paths:
+        model = get_CLAP_LoRa(r=r, alpha=alpha)
+        model.load_state_dict(torch.load(ckpt, map_location=DEVICE))
+        model_name = os.path.basename(ckpt).split(".pt")[0]
+        model_recall[model_name] = evaluate(processor, model, test_loader, model_name=model_name).values()
+    plot_recall_at_ks(model_recall, save_path="recall_at_ks.png")
+
+
+evaluate_all_models()
+

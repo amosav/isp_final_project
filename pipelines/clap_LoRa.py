@@ -9,7 +9,7 @@ from tqdm import tqdm
 from transformers import AutoProcessor
 
 from audio_datasets.music_genres_dataset import get_music_genres_data_loaders
-from evaluation import evaluate
+from evaluation import simple_eval_for_training
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -85,7 +85,7 @@ class Pipeline:
                 )
                 loss = self.loss(preds['audio_embeds'], preds['text_embeds'])
                 validation_loss += loss.item()
-            accuracy.append(evaluate(processor, self.model, self.test_loader))
+            accuracy.append(simple_eval_for_training(processor, self.model, self.test_loader))
 
             train_losses.append(train_loss / len(self.train_loader))
             validation_losses.append(validation_loss / len(self.test_loader))

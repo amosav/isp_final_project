@@ -5,7 +5,7 @@ from sklearn.manifold import TSNE
 import seaborn as sns
 
 
-def plot_embedding_visualization(embeddings, labels, label_names, method="pca", n_components=2):
+def plot_embedding_visualization(embeddings, labels, label_names, method="pca", n_components=2, save_path=None):
     """
     Visualizes high-dimensional embeddings using PCA or t-SNE and adds label names directly on the plot.
 
@@ -46,10 +46,12 @@ def plot_embedding_visualization(embeddings, labels, label_names, method="pca", 
     plt.title(title)
     plt.xlabel("Component 1")
     plt.ylabel("Component 2")
+    if save_path:
+        plt.savefig(save_path)
     plt.show()
 
 
-def plot_cm(captions, cm):
+def plot_cm(captions, cm, save_path=None):
     cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]#show rate
     plt.figure(figsize=(10, 7))
     sns.heatmap(cm, annot=True, fmt='.2f', cmap='Blues', xticklabels=captions, yticklabels=captions)# 'd'
@@ -57,4 +59,20 @@ def plot_cm(captions, cm):
     plt.ylabel('True Labels')
     plt.title('Confusion Matrix')
     plt.tight_layout()
+    if save_path:
+        plt.savefig(save_path)
+    plt.show()
+
+
+def plot_recall_at_ks(model_recall, save_path=None):
+    K_S = [1, 5, 10]
+    for model_name, recalls in model_recall.items():
+        plt.plot(K_S, recalls, label=model_name)
+    plt.xlabel("K")
+    plt.ylabel("Recall")
+    plt.xticks(K_S)
+    plt.legend()
+    plt.title("Recall at K")
+    if save_path:
+        plt.savefig(save_path)
     plt.show()
