@@ -35,7 +35,7 @@ def plot_embedding_visualization(embeddings, labels, label_names, method="pca", 
     # Scatter plot for each label
     for label in unique_labels:
         idx = np.where(np.array(labels) == label)
-        plt.scatter(reduced_embeddings[idx, 0], reduced_embeddings[idx, 1], color=color_mapping[label], s=50)
+        plt.scatter(reduced_embeddings[idx, 0], reduced_embeddings[idx, 1], color=color_mapping[label], s=50, label=label_names[label])
 
         # Calculate the center of the cluster and place the label name there
         x_mean = np.mean(reduced_embeddings[idx, 0])
@@ -46,6 +46,7 @@ def plot_embedding_visualization(embeddings, labels, label_names, method="pca", 
     plt.title(title)
     plt.xlabel("Component 1")
     plt.ylabel("Component 2")
+    plt.legend()
     if save_path:
         plt.savefig(save_path)
     plt.show()
