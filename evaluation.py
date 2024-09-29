@@ -116,7 +116,7 @@ def evaluate_all_models():
     model.eval()
     model.to(DEVICE)
     model_name = "CLAP"
-    model_recall[model_name] = simple_eval_for_training(processor, model, train_loader)
+    model_recall[model_name] = evaluate(processor, model, test_loader, model_name=model_name).values()
     for ckpt, alpha, r in checkpoint_paths:
         model = get_CLAP_LoRa(r=r, alpha=alpha)
         model.load_state_dict(torch.load(ckpt, map_location=DEVICE))
