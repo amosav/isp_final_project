@@ -1,4 +1,5 @@
 # Final Project: CLAP Model with Audio Pretraining
+by amosav and yuvalpolinski
 
 Welcome to the final project repository! This project implements **CLAP (Contrastive Language-Audio Pretraining)** with a focus on audio encoding, audio captioning, and classification tasks using the ESC-50 dataset and Music genres data set.
 
