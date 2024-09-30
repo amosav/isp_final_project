@@ -1,8 +1,6 @@
-# Let's create a text file with the README content
-readme_content = """
 # Final Project: CLAP Model with Audio Pretraining
 
-Welcome to the final project repository! This project implements **CLAP (Contrastive Language-Audio Pretraining)** with a focus on audio encoding, audio captioning, and classification tasks using the ESC-50 dataset.
+Welcome to the final project repository! This project implements **CLAP (Contrastive Language-Audio Pretraining)** with a focus on audio encoding, audio captioning, and classification tasks using the ESC-50 dataset and Music genres data set.
 
 ## Project Overview
 
@@ -29,61 +27,7 @@ The aim of the project is to achieve high performance in various audio classific
 
 ## Dataset
 
-The project uses the **ESC-50 dataset**, a collection of 50 different sound categories, including categories like vacuum cleaner, rock music, and more. The dataset has been preprocessed and augmented for training purposes.
-
-## Installation
-
-To set up the project environment, follow these steps:
-
-1. Clone the repository:
-
-    ```bash
-    git clone https://github.com/amosav/isp_final_project.git
-    cd isp_final_project
-    ```
-
-2. Install dependencies:
-
-    ```bash
-    pip install -r requirements.txt
-    ```
-
-3. Download and prepare the dataset:
-
-- The ESC-50 dataset should be downloaded and placed in the appropriate directory as specified in the project.
-
-## Training
-
-To train the CLAP model with LoRA fine-tuning, run the following command:
-
-    ```bash
-    python train.py --dataset esc50 --model clap --fine-tune lora
-    ```
-
-### Parameters:
-- `--dataset`: The dataset to use (e.g., ESC-50).
-- `--model`: The model to train (e.g., CLAP).
-- `--fine-tune`: The fine-tuning strategy (e.g., LoRA).
-
-## Evaluation
-
-To evaluate the trained model on the test set, use:
-
-    ```bash
-    python evaluate.py --dataset esc50 --model clap --fine-tune lora
-    ```
-
-This will output the classification accuracy and other performance metrics.
-
-## Visualization
-
-For visualizing the embedding space, run:
-
-    ```bash
-    python visualize.py --model clap --dataset esc50
-    ```
-
-This will generate t-SNE plots and confusion matrices based on the model’s predictions.
+The project uses the **ESC-50 dataset**, a collection of 50 different sound categories, including categories like vacuum cleaner, rock music, and more. The dataset has been preprocessed and augmented for training purposes in addition we used an music genres data.
 
 ## Contributing
 
@@ -98,10 +42,3 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 - The **CLAP** model is based on the work done in **Contrastive Language-Audio Pretraining**.
 - Thanks to the creators of the **ESC-50** dataset for providing a comprehensive set of environmental sound recordings.
 """
-
-# Saving the content into a text file
-file_path = "/mnt/data/README_CLAP_Project.txt"
-with open(file_path, "w") as file:
-    file.write(readme_content)
-
-file_path
